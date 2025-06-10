@@ -29,6 +29,7 @@
                 android:text="Favorite Recipes"
                 android:textSize="28sp"
                 android:textStyle="bold"
+                android:textColor="@color/white"
                 android:fontFamily="sans-serif-medium"
                 android:layout_marginBottom="8dp" />
 
@@ -39,6 +40,7 @@
                 android:text="12 resep tersimpan"
                 android:textSize="14sp"
                 android:alpha="0.9"
+                android:textColor="@color/white"
                 android:layout_marginBottom="20dp"
                 android:fontFamily="sans-serif" />
 
