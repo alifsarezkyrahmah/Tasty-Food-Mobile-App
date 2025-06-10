@@ -1,6 +1,8 @@
 //package com.example.project2.Fragment;
 //
 //import android.os.Bundle;
+//import android.os.Handler;
+//import android.os.Looper;
 //import android.view.LayoutInflater;
 //import android.view.View;
 //import android.view.ViewGroup;
@@ -20,6 +22,9 @@
 //import com.example.project2.Model.Recipe;
 //import com.example.project2.R;
 //
+//import java.util.concurrent.ExecutorService;
+//import java.util.concurrent.Executors;
+//
 //public class HomeFragment extends Fragment {
 //
 //    private HomeViewModel homeViewModel;
@@ -35,6 +40,8 @@
 //
 //    private TextView tvErrorMessage, tvFeaturedTitle, tvAllRecipesTitle, tvNoRecipes;
 //    private Button btnRefresh;
+//    private ExecutorService executorService = Executors.newSingleThreadExecutor();
+//    private Handler mainHandler = new Handler(Looper.getMainLooper());
 //
 //    @Override
 //    public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -65,6 +72,7 @@
 //        progressBar.setVisibility(View.VISIBLE);
 //        tvErrorMessage.setVisibility(View.GONE);
 //        btnRefresh.setVisibility(View.GONE);
+//        tvNoRecipes.setVisibility(View.GONE); // Initially hide
 //
 //        homeViewModel = new ViewModelProvider(requireActivity()).get(HomeViewModel.class);
 //
@@ -80,6 +88,7 @@
 //                viewback.setVisibility(View.GONE);
 //                tvErrorMessage.setVisibility(View.GONE);
 //                btnRefresh.setVisibility(View.GONE);
+//                tvNoRecipes.setVisibility(View.GONE);
 //            } else {
 //                progressBar.setVisibility(View.GONE);
 //            }
@@ -95,6 +104,27 @@
 //        homeViewModel.getAllRecipes().observe(getViewLifecycleOwner(), allRecipes -> {
 //            if (allRecipes != null) {
 //                allAdapter = new RecipeAdapter(getContext(), allRecipes, false);
+//
+//                // Set filter result listener to handle "no recipes" message
+//                allAdapter.setOnFilterResultListener(new RecipeAdapter.OnFilterResultListener() {
+//                    @Override
+//                    public void onResultCount(int count) {
+//                        // Show tvNoRecipes if no results found during search
+//                        String currentQuery = searchView.getQuery().toString();
+//                        if (currentQuery != null && !currentQuery.trim().isEmpty() && count == 0) {
+//                            tvNoRecipes.setVisibility(View.VISIBLE);
+//                            recyclerViewAllRecipes.setVisibility(View.GONE);
+//                        } else if (currentQuery != null && !currentQuery.trim().isEmpty() && count > 0) {
+//                            tvNoRecipes.setVisibility(View.GONE);
+//                            recyclerViewAllRecipes.setVisibility(View.VISIBLE);
+//                        } else {
+//                            // Not searching, show normal view
+//                            tvNoRecipes.setVisibility(View.GONE);
+//                            recyclerViewAllRecipes.setVisibility(View.VISIBLE);
+//                        }
+//                    }
+//                });
+//
 //                recyclerViewAllRecipes.setAdapter(allAdapter);
 //
 //                contentLayout.setVisibility(View.VISIBLE);
@@ -109,6 +139,7 @@
 //                progressBar.setVisibility(View.GONE);
 //                contentLayout.setVisibility(View.GONE);
 //                viewback.setVisibility(View.GONE);
+//                tvNoRecipes.setVisibility(View.GONE);
 //
 //                tvErrorMessage.setText(errorMsg);
 //                tvErrorMessage.setVisibility(View.VISIBLE);
@@ -126,22 +157,47 @@
 //                return false; // Tidak butuh submit
 //            }
 //
+//
 //            @Override
 //            public boolean onQueryTextChange(String newText) {
-//                if (allAdapter != null) {
-//                    allAdapter.filterList(newText);
+//                // Show progress indicator
+//                progressBar.setVisibility(View.VISIBLE);
+//                recyclerViewAllRecipes.setVisibility(View.GONE);
+//                // Execute search on background thread
+//                executorService.execute(() -> {
+//                    try {
+//                        // Update UI on main thread
+//                        mainHandler.post(() -> {
+//                            if (allAdapter != null) {
+//                                // Call the adapter's filter method on the main thread
+//                                allAdapter.filterList(newText);
 //
-//                    // Sembunyikan featured jika sedang mencari
-//                    if (newText != null && !newText.trim().isEmpty()) {
-//                        recyclerViewFeaturedRecipes.setVisibility(View.GONE);
-//                        tvAllRecipesTitle.setVisibility(View.GONE);
-//                        tvFeaturedTitle.setVisibility(View.GONE);
-//                    } else {
-//                        recyclerViewFeaturedRecipes.setVisibility(View.VISIBLE);
-//                        tvAllRecipesTitle.setVisibility(View.VISIBLE);
-//                        tvFeaturedTitle.setVisibility(View.VISIBLE);
+//                                // UI visibility logic
+//                                if (newText != null && !newText.trim().isEmpty()) {
+//                                    recyclerViewFeaturedRecipes.setVisibility(View.GONE);
+//                                    tvAllRecipesTitle.setVisibility(View.GONE);
+//                                    tvFeaturedTitle.setVisibility(View.GONE);
+//                                } else {
+//                                    recyclerViewFeaturedRecipes.setVisibility(View.VISIBLE);
+//                                    tvAllRecipesTitle.setVisibility(View.VISIBLE);
+//                                    tvFeaturedTitle.setVisibility(View.VISIBLE);
+//                                    tvNoRecipes.setVisibility(View.GONE);
+//                                }
+//                            }
+//                            // Hide progress indicator
+//                            progressBar.setVisibility(View.GONE);
+//
+//                        });
+//                    } catch (Exception e) {
+//                        e.printStackTrace();
+//                        mainHandler.post(() -> {
+//                            // Handle errors
+//                            progressBar.setVisibility(View.GONE);
+//                            // Show error message if needed
+//                        });
 //                    }
-//                }
+//                });
+//
 //                return true;
 //            }
 //        });
@@ -149,8 +205,6 @@
 //        return view;
 //    }
 //}
-
-//
 
 
 package com.example.project2.Fragment;
@@ -302,16 +356,11 @@ public class HomeFragment extends Fragment {
             }
         });
 
-        if (homeViewModel.getAllRecipes().getValue() == null) {
-            homeViewModel.loadRecipes();
-        }
-
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
                 return false; // Tidak butuh submit
             }
-
 
             @Override
             public boolean onQueryTextChange(String newText) {
@@ -358,5 +407,15 @@ public class HomeFragment extends Fragment {
         });
 
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Load data setiap kali fragment ditampilkan
+        if (homeViewModel != null) {
+            homeViewModel.clearError();
+            homeViewModel.loadRecipes();
+        }
     }
 }
