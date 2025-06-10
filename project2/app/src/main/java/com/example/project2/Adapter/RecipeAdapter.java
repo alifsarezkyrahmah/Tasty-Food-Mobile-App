@@ -68,9 +68,6 @@
 //    }
 //}
 //
-
-
-// RecipeAdapter.java
 package com.example.project2.Adapter;
 
 import android.content.Context;
@@ -85,12 +82,13 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.project2.DetailActivity;
+import com.example.project2.Model.Recipe;
+import com.example.project2.R;
 import com.squareup.picasso.Picasso;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
-import com.example.project2.R;
-import com.example.project2.Model.Recipe;
 
 public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -99,17 +97,29 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
 
     private Context context;
     private List<Recipe> recipeList;
-    private boolean isFeaturedList; // true for featured, false for regular
+    private List<Recipe> fullList; // full copy for filtering
+    private boolean isFeaturedList;
+
+    private OnFilterResultListener filterResultListener;
 
     public RecipeAdapter(Context context, List<Recipe> recipeList, boolean isFeaturedList) {
         this.context = context;
-        this.recipeList = recipeList;
+        this.recipeList = new ArrayList<>(recipeList);
+        this.fullList = new ArrayList<>(recipeList);
         this.isFeaturedList = isFeaturedList;
+    }
+
+    // Callback Interface
+    public interface OnFilterResultListener {
+        void onResultCount(int count);
+    }
+
+    public void setOnFilterResultListener(OnFilterResultListener listener) {
+        this.filterResultListener = listener;
     }
 
     @Override
     public int getItemViewType(int position) {
-        // Example: use TYPE_FEATURED for featured list, TYPE_REGULAR otherwise
         return isFeaturedList ? TYPE_FEATURED : TYPE_REGULAR;
     }
 
@@ -124,77 +134,98 @@ public class RecipeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         }
     }
 
-@Override
-public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-    Recipe recipe = recipeList.get(position);
+    @Override
+    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+        Recipe recipe = recipeList.get(position);
 
-    double score = 0.0;
-    if (recipe.getUser_ratings() != null) {
-        score = recipe.getUser_ratings().getScore();
+        double score = 0.0;
+        if (recipe.getUser_ratings() != null) {
+            score = recipe.getUser_ratings().getScore();
+        }
+        double ratingOutOfFive = score * 5;
+        String ratingText = String.format(Locale.getDefault(), "%.1f", ratingOutOfFive);
+
+        View.OnClickListener imageClickListener = v -> {
+            Intent intent = new Intent(context, DetailActivity.class);
+            intent.putExtra("SEND_RECIPE", recipe);
+            Log.d("RecipeAdapter", "Sending RECIPE_ID = " + recipe.getCanonical_id());
+            context.startActivity(intent);
+        };
+
+        if (holder instanceof FeaturedViewHolder) {
+            FeaturedViewHolder featuredHolder = (FeaturedViewHolder) holder;
+            featuredHolder.tvNameFood.setText(recipe.getName());
+            featuredHolder.tvCountryFood.setText(recipe.getCountry());
+            featuredHolder.tvRating.setText(ratingText);
+            Picasso.get()
+                    .load(recipe.getThumbnailUrl())
+                    .placeholder(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .fit()
+                    .centerCrop()
+                    .into(featuredHolder.imageFood);
+
+            featuredHolder.imageFood.setOnClickListener(imageClickListener);
+
+        } else if (holder instanceof RegularViewHolder) {
+            RegularViewHolder regularHolder = (RegularViewHolder) holder;
+            regularHolder.tvNameFood.setText(recipe.getName());
+            regularHolder.tvCountryFood.setText(recipe.getCountry());
+            Picasso.get()
+                    .load(recipe.getThumbnailUrl())
+                    .placeholder(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .fit()
+                    .centerCrop()
+                    .into(regularHolder.imageFood);
+
+            regularHolder.imageFood.setOnClickListener(imageClickListener);
+        }
     }
-    double ratingOutOfFive = score * 5;
-    String ratingText = String.format(Locale.getDefault(), "%.1f", ratingOutOfFive);
-
-    View.OnClickListener imageClickListener = v -> {
-        Intent intent = new Intent(context, DetailActivity.class);
-        intent.putExtra("SEND_RECIPE", recipe);
-        Log.d("RecipeAdapter", "Sending RECIPE_ID = " + recipe.getCanonical_id());
-        context.startActivity(intent);
-    };
-
-
-    if (holder instanceof FeaturedViewHolder) {
-        FeaturedViewHolder featuredHolder = (FeaturedViewHolder) holder;
-        featuredHolder.tvNameFood.setText(recipe.getName());
-        featuredHolder.tvCountryFood.setText(recipe.getCountry());
-        featuredHolder.tvRating.setText(ratingText);
-        Picasso.get()
-                .load(recipe.getThumbnailUrl())
-                .placeholder(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
-                .fit()
-                .centerCrop()
-                .into(featuredHolder.imageFood);
-
-        featuredHolder.imageFood.setOnClickListener(imageClickListener);
-
-    } else if (holder instanceof RegularViewHolder) {
-        RegularViewHolder regularHolder = (RegularViewHolder) holder;
-        regularHolder.tvNameFood.setText(recipe.getName());
-        regularHolder.tvCountryFood.setText(recipe.getCountry());
-        Picasso.get()
-                .load(recipe.getThumbnailUrl())
-                .placeholder(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
-                .fit()
-                .centerCrop()
-                .into(regularHolder.imageFood);
-
-        regularHolder.imageFood.setOnClickListener(imageClickListener);
-    }
-}
 
     @Override
     public int getItemCount() {
         return recipeList.size();
     }
 
+    // 🔍 Filter Method
+    public void filterList(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            recipeList = new ArrayList<>(fullList);
+        } else {
+            List<Recipe> filtered = new ArrayList<>();
+            for (Recipe recipe : fullList) {
+                if (recipe.getName() != null &&
+                        recipe.getName().toLowerCase().contains(query.toLowerCase())) {
+                    filtered.add(recipe);
+                }
+            }
+            recipeList = filtered;
+        }
+
+        // Callback untuk mengirim hasil filter
+        if (filterResultListener != null) {
+            filterResultListener.onResultCount(recipeList.size());
+        }
+
+        notifyDataSetChanged();
+    }
+
+    // ViewHolder Featured
     public static class FeaturedViewHolder extends RecyclerView.ViewHolder {
         ImageView imageFood;
-        TextView tvNameFood, tvCountryFood;
-
-        TextView tvRating;
+        TextView tvNameFood, tvCountryFood, tvRating;
 
         public FeaturedViewHolder(View itemView) {
             super(itemView);
             imageFood = itemView.findViewById(R.id.ivImageFood);
             tvNameFood = itemView.findViewById(R.id.tvNameFood);
             tvCountryFood = itemView.findViewById(R.id.tvCountryFood);
-            tvRating = itemView.findViewById(R.id.tv_rating_score); // <- tambahkan ini
+            tvRating = itemView.findViewById(R.id.tv_rating_score);
         }
-
     }
 
+    // ViewHolder Regular
     public static class RegularViewHolder extends RecyclerView.ViewHolder {
         ImageView imageFood;
         TextView tvNameFood, tvCountryFood;

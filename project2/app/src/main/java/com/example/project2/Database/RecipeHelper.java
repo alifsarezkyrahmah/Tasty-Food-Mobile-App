@@ -109,4 +109,50 @@ public class RecipeHelper {
         return list;
     }
 
+    public List<Recipe> searchFavoriteRecipes(String query) {
+    List<Recipe> recipeList = new ArrayList<>();
+    // Use existing db instance instead of trying to get a new one
+
+
+    String searchQuery = "%" + query + "%";
+    String[] selectionArgs = {searchQuery}; // Only one argument now
+
+    Cursor cursor = db.query(
+            RecipeContract.TABLE_NAME,
+            null,  // all columns
+            RecipeContract.RecipeColumns.COLUMN_NAME + " LIKE ?",  // Only search by name
+            selectionArgs,
+            null,
+            null,
+            RecipeContract.RecipeColumns.COLUMN_NAME + " ASC"
+    );
+
+    if (cursor != null && cursor.moveToFirst()) {
+        Gson gson = new Gson();
+        Type instructionListType = new TypeToken<List<Instruction>>() {}.getType();
+
+        do {
+            Recipe recipe = new Recipe();
+            // Use getColumnIndexOrThrow with contract constants
+            recipe.setName(cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_NAME)));
+            recipe.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_DESCRIPTION)));
+            recipe.setThumbnailUrl(cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_THUMBNAIL)));
+            recipe.setVideo_url(cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_VIDEO)));
+
+            // Parse JSON fields as in getAllFavorites
+            String nutritionJson = cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_NUTRITION));
+            String instructionsJson = cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_INSTRUCTIONS));
+            String ratingsJson = cursor.getString(cursor.getColumnIndexOrThrow(RecipeContract.RecipeColumns.COLUMN_RATINGS));
+
+            recipe.setNutrition(gson.fromJson(nutritionJson, Nutrition.class));
+            recipe.setInstructions(gson.fromJson(instructionsJson, instructionListType));
+            recipe.setUser_ratings(gson.fromJson(ratingsJson, Recipe.UserRatings.class));
+
+            recipeList.add(recipe);
+        } while (cursor.moveToNext());
+    }
+
+    if (cursor != null) cursor.close();
+    return recipeList;
+}
 }
