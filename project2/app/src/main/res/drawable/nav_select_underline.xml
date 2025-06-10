@@ -1,0 +1,12 @@
+<!-- res/drawable/nav_item_underline.xml -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:gravity="bottom|center_horizontal"
+                      android:left="40dp"
+                      android:right="40dp">
+        <shape android:shape="rectangle">
+                        <size android:height="3dp" />
+                        <solid android:color="@color/primary" />
+                        <corners android:radius="5dp" />
+        </shape>
+    </item>
+</layer-list>
